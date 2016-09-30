@@ -78,17 +78,18 @@ class DNN(object):
         #           "that collection.")
 
         self.targets = tf.get_collection(tf.GraphKeys.TARGETS)
-        if len(self.inputs) == 0:
-            raise Exception("No target data! Please add a 'regression' layer "
-                            "to your model (or add your target data "
-                            "placeholder to tf.GraphKeys.TARGETS collection).")
+        # TODO: error tracking when targets are actually used
+        # if len(self.targets) == 0:
+        #     raise Exception("No target data! Please add a 'regression' layer "
+        #                     "to your model (or add your target data "
+        #                     "placeholder to tf.GraphKeys.TARGETS collection).")
         self.predictor = Evaluator([self.net],
                                    session=self.session)
 
     def fit(self, X_inputs, Y_targets, n_epoch=10, validation_set=None,
             show_metric=False, batch_size=None, shuffle=None,
             snapshot_epoch=True, snapshot_step=None, excl_trainops=None,
-            run_id=None):
+            validation_batch_size=None, run_id=None, callbacks=[]):
         """ Fit.
 
         Train model, feeding X_inputs and Y_targets to the network.
@@ -124,7 +125,11 @@ class DNN(object):
                 `float` (<1) to performs a data split over training data.
             show_metric: `bool`. Display or not accuracy at every step.
             batch_size: `int` or None. If `int`, overrides all network
-                estimators 'batch_size' by this value.
+                estimators 'batch_size' by this value.  Also overrides
+                `valiation_batch_size` if `int`, and if `valudation_batch_size`
+                is None.
+            validation_batch_size: `int` or None. If `int`, overrides all network
+                estimators 'validation_batch_size' by this value.
             shuffle: `bool` or None. If `bool`, overrides all network
                 estimators 'shuffle' by this value.
             snapshot_epoch: `bool`. If True, it will snapshot model at the end
@@ -137,6 +142,8 @@ class DNN(object):
                 exclude from training process (TrainOps can be retrieve
                 through `tf.get_collection_ref(tf.GraphKeys.TRAIN_OPS)`).
             run_id: `str`. Give a name for this run. (Useful for Tensorboard).
+            callbacks: `Callback` or `list`. Custom callbacks to use in the
+                training life cycle
 
         """
         if len(self.train_ops) == 0:
@@ -147,6 +154,13 @@ class DNN(object):
         if batch_size:
             for train_op in self.train_ops:
                 train_op.batch_size = batch_size
+
+        if batch_size is not None and validation_batch_size is None:
+            validation_batch_size = batch_size
+
+        if validation_batch_size:
+            for train_op in self.train_ops:
+                train_op.validation_batch_size = validation_batch_size
 
         valX, valY = None, None
         if validation_set:
@@ -196,7 +210,8 @@ class DNN(object):
                          dprep_dict=dprep_dict,
                          daug_dict=daug_dict,
                          excl_trainops=excl_trainops,
-                         run_id=run_id)
+                         run_id=run_id,
+                         callbacks=callbacks)
 
     def predict(self, X):
         """ Predict.
